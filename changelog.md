@@ -1,3 +1,13 @@
+<a name="0.1.0"></a>
+# 0.1.0 (2016-02-18)
+
+
+### Features
+
+* add rewrite-imports transform ([d5e8a51](https://github.com/sinnerschrader/patternplate-transform-resolve-imports/commit/d5e8a51))
+
+
+
 
 
 ---
