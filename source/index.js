@@ -1,41 +1,155 @@
-import {sep} from 'path';
-import {
-	getPatternIdRegistry,
-	resolvePatternFilePath
-} from 'patternplate-transforms-core';
+import path from 'path';
+import {parse} from 'babylon';
+import codeFrame from 'babel-code-frame';
+import generate from 'babel-generator';
+import traverse from 'babel-traverse';
+import {isLiteral} from 'babel-types';
+import r from 'resolve';
+import {resolvePathFormatString} from 'patternplate-transforms-core';
 
-const detect = /(?:import(?:.+?)from\s+|require\()['"]([^'"]+)['"]\)?;/g;
+const fstring = '%(outputName)s/%(patternId)s/index.%(extension)s';
 
-export default application => {
-	return async function rewriteImportsTransform(file, demo, configuration) {
-		const patternConfig = application.configuration.patterns;
-		const resultName = patternConfig.formats[configuration.outFormat].name;
+export default app => {
+	const context = {
+		formats: selectFormats(app)
+	};
+	return resolveImportsTransform(context);
+};
+
+function resolveImportsTransform({formats}) {
+	return async function(file, _, config) {
+		if (!file) {
+			throw new Error('rewrite-imports received invalid file');
+		}
+
+		if (!('buffer' in file) || !file.dependencies || !file.meta) {
+			throw new Error('rewrite-imports received invalid file');
+		}
+
+		if (!config) {
+			throw new Error('rewrite-imports is not configured in .transforms["resolve-imports"]');
+		}
+
+		const formatExtension = config.outFormat;
+
+		if (!formatExtension) {
+			throw new Error('rewrite-imports has no configured .outFormat.');
+		}
+
 		const source = file.buffer.toString('utf-8');
-		const registry = getPatternIdRegistry(file.dependencies);
-		const resolve = configuration.resolve;
+		const format = selectFormat(file.format, formats);
+		const formatName = format.name;
+		file.meta.dependencies = file.meta.dependencies || [];
 
-		const rewritten = source.replace(detect, (match, name) => {
-			let result = match;
+		if (!formatName) {
+			throw new Error(`format ${file.format} of ${file.pattern.id}:${file.path} is not configured. Available formats: ${Object.keys(formats).join(', ')}`);
+		}
 
-			const resolvedPath = resolvePatternFilePath(
-				registry, resolve,
-				resultName, configuration.outFormat,
-				name, file.pattern.path);
+		const resolvePath = getResolvePath(fstring, formatName, formatExtension);
 
-			if (resolvedPath) {
-				result = result
-					.replace(name, resolvedPath)
-					.split(sep)
+		// early exit if there is no require call
+		if (!source.includes('require')) {
+			return file;
+		}
+
+		const ast = parse(source);
+		const deps = await dependencies(ast, source);
+
+		// Exit if no dependencies to process
+		if (!deps.length) {
+			return file;
+		}
+
+		// Rewrite imports if applicable
+		const jobs = deps.map(async dep => {
+			const [name, set] = dep;
+			if (name in file.dependencies) {
+				const dependency = file.dependencies[name];
+				const sourcePath = path.dirname(resolvePath(file.pattern.id));
+				const targetPath = path.dirname(resolvePath(dependency.pattern.id));
+				const relativeId = path.relative(sourcePath, targetPath)
+					.split(path.sep)
 					.join('/');
-			} else {
-				require.resolve(name);
-				file.meta.dependencies.push(name.split('/')[0]);
+				set(relativeId);
+				return null;
 			}
-
-			return result;
+			// Check if this name is resolvable
+			await resolvePackage(name);
+			const [id] = name.split('/');
+			if (!file.meta.dependencies.includes(id)) {
+				file.meta.dependencies.push(id);
+			}
+			return null;
 		});
 
-		file.buffer = rewritten;
+		await Promise.all(jobs);
+		file.buffer = generate(ast, {}, source).code;
 		return file;
 	};
-};
+}
+
+function getResolvePath(fstring, formatName, formatExtension) {
+	return id => {
+		return resolvePathFormatString(fstring, id, formatName, formatExtension);
+	};
+}
+
+function resolvePackage(id) {
+	return new Promise((resolve, reject) => {
+		const opts = {basedir: process.cwd()};
+		r(id, opts, (error, result) => {
+			if (error) {
+				return reject(error);
+			}
+			resolve(result);
+		});
+	});
+}
+
+function set(leaf, key = 'value') {
+	return value => {
+		leaf[key] = value;
+	};
+}
+
+// ast => [[name: string, set: (value) => void]]
+function dependencies(ast, source) {
+	const deps = [];
+
+	traverse(ast, {
+		ImportDeclaration(path) {
+			deps.push([path.node.source.value, set(path.node.source)]);
+		},
+		ExportDeclaration(path) {
+			if (path.node.source) {
+				deps.push([path.node.source.value, set(path.node.source)]);
+			}
+		},
+		CallExpression(path) {
+			if (path.node.callee.name !== 'require') {
+				return;
+			}
+			const [arg] = path.node.arguments;
+			if (!isLiteral(arg)) {
+				const frame = codeFrame(source, arg.loc.start.line, arg.loc.start.column);
+				const error = new Error(`Dynamic require calls are not supported:\n${frame}`);
+				error.loc = {
+					line: arg.loc.start.line,
+					column: arg.loc.start.column
+				};
+				throw error;
+			}
+			deps.push([arg.value, set(arg)]);
+		}
+	});
+
+	return deps;
+}
+
+function selectFormats(app) {
+	return ((app.configuration.patterns || {}).formats) || {};
+}
+
+function selectFormat(format, formats) {
+	return formats[format] || {};
+}
