@@ -29,15 +29,12 @@ import foo from '../baz/index.js';
 require('../../baz/bar/index.js');
 ```
 
-## Configuration
-Install `patternplate-transform-resolve-imports`, [patternplate-server](sinnerschrader/patternplate) currently ships with `patternplate-transform-resolve-imports` working on `*.jsx`, `*.html` files by default.
-
 ### Parameters
 ```js
 // configuration/patternplate-server/transforms.js
 module.exports = {
-	"resolve-imports": {
-		"resolve": "%(outputName)s/%(patternId)s/index.%(extension)s"
+	'resolve-imports': {
+		'outFormat': 'js'
 	}
 }
 ```
