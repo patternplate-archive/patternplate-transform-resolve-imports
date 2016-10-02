@@ -99,7 +99,7 @@
     "babel-generator": "6.16.0",
     "babel-traverse": "6.16.0",
     "babel-types": "6.16.0",
-    "babylon": "6.11.2",
+    "babylon": "6.11.4",
     "patternplate-transforms-core": "0.1.2",
     "resolve": "1.1.7"
   }
