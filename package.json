@@ -92,7 +92,7 @@
     "dependency-check": "2.6.0",
     "husky": "0.11.9",
     "lodash": "4.16.5",
-    "xo": "0.16.0"
+    "xo": "0.17.1"
   },
   "dependencies": {
     "babel-code-frame": "6.16.0",
