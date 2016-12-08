@@ -95,7 +95,7 @@
     "xo": "0.16.0"
   },
   "dependencies": {
-    "babel-code-frame": "6.16.0",
+    "babel-code-frame": "6.20.0",
     "babel-generator": "6.19.0",
     "babel-traverse": "6.19.0",
     "babel-types": "6.19.0",
