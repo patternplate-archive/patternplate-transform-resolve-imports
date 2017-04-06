@@ -72,3 +72,8 @@ test('an external dependency with subpaths should be registered with package nam
 	await transform(mocks.externalSubFile, null, selectConfig(mocks.configured));
 	t.deepEqual(result.meta.dependencies, ['lodash']);
 });
+
+test('should not throw for flow syntax', async t => {
+	const transform = factory(mocks.configured);
+	t.notThrows(transform(mocks.flowFile, null, selectConfig(mocks.configured)));
+});
