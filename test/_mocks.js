@@ -116,3 +116,17 @@ export const externalSubFile = getFile({
 		id: 'external-file'
 	}
 });
+
+export const flowFile = getFile({
+	buffer: `
+		const empty = require('empty');
+		type Empty = {};
+	`,
+	path: 'flow-file/index.js',
+	pattern: {
+		id: 'flow-file'
+	},
+	dependencies: {
+		empty: emptyFile
+	}
+});

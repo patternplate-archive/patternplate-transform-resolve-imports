@@ -1,5 +1,5 @@
 import path from 'path';
-import {parse} from 'babylon';
+import * as babylon from 'babylon';
 import codeFrame from 'babel-code-frame';
 import generate from 'babel-generator';
 import traverse from 'babel-traverse';
@@ -8,6 +8,22 @@ import r from 'resolve';
 import {resolvePathFormatString} from 'patternplate-transforms-core';
 
 const fstring = '%(outputName)s/%(patternId)s/index.%(extension)s';
+
+const parserOpts = {
+	sourceType: 'module',
+	plugins: [
+		'jsx',
+		'flow',
+		'doExpressions',
+		'decorators',
+		'classProperties',
+		'exportExtensions',
+		'asyncGenerators',
+		'functionBind',
+		'functionSent',
+		'dynamicImport'
+	]
+};
 
 export default app => {
 	const context = {
@@ -48,11 +64,11 @@ function resolveImportsTransform({formats}) {
 		const resolvePath = getResolvePath(fstring, formatName, formatExtension);
 
 		// early exit if there is no require call
-		if (!source.includes('require')) {
+		if (!source.includes('require') && !source.includes('import')) {
 			return file;
 		}
 
-		const ast = parse(source);
+		const ast = parse(source, parserOpts, file);
 		const deps = await dependencies(ast, source);
 
 		// Exit if no dependencies to process
@@ -86,6 +102,19 @@ function resolveImportsTransform({formats}) {
 		file.buffer = generate(ast, {}, source).code;
 		return file;
 	};
+}
+
+function parse(source, opts, file) {
+	try {
+		return babylon.parse(source, opts);
+	} catch (err) {
+		err.message = [err.message, file.path].join('\n');
+		if (err.loc) {
+			const frame = codeFrame(source, err.loc.line, err.loc.column);
+			err.message = [err.message, frame].join('\n');
+		}
+		throw err;
+	}
 }
 
 function getResolvePath(fstring, formatName, formatExtension) {
