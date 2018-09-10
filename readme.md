@@ -1,3 +1,6 @@
+> # ⚠️ Deprecated
+> Use instead: https://patternplate.github.io/
+
 # patternplate-transform-resolve-imports
 [patternplate](/sinnerschrader/patternplate) transform pattern dependency imports to interoperable paths.
 
